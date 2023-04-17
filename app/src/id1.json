@@ -1,0 +1,198 @@
+{
+  "version": "0.1.0",
+  "name": "election",
+  "instructions": [
+    {
+      "name": "initialize",
+      "accounts": [
+        {
+          "name": "election",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "candidates",
+          "type": {
+            "vec": "string"
+          }
+        },
+        {
+          "name": "electionName",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "initializeballot",
+      "accounts": [
+        {
+          "name": "election",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "voterAccount",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "voter",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "vote",
+      "accounts": [
+        {
+          "name": "election",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "voter",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "voterAccount",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "candidateVoteId",
+          "type": "u8"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Election",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "candidates",
+            "type": {
+              "vec": {
+                "defined": "Candidates"
+              }
+            }
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "finished",
+            "type": "bool"
+          },
+          {
+            "name": "counted",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ballot",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "votedCandidate",
+            "type": "u8"
+          },
+          {
+            "name": "voted",
+            "type": "bool"
+          },
+          {
+            "name": "initialized",
+            "type": "bool"
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "Candidates",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "id",
+            "type": "u8"
+          },
+          {
+            "name": "votes",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VoterError",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "NotInitialized"
+          },
+          {
+            "name": "VoterAlreadyVoted"
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "ElectionAlreadyFinished"
+    },
+    {
+      "code": 6001,
+      "name": "ElectionCandidateNotFound"
+    },
+    {
+      "code": 6002,
+      "name": "ElectionAreNotCounted"
+    }
+  ],
+  "metadata": {
+    "address": "Gn3U9YVqjFmaNnKFBvDX4qaoTum4CBDwJz4KoYH6P4hA"
+  }
+}
