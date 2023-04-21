@@ -8,137 +8,123 @@ pub mod election {
 
     pub fn initialize(
         ctx: Context<Initialize>,
-        candidates: Vec<String>,
-        election_name: String
+        election_title: String,
+        description: String
     ) -> Result<()> {
-        ctx.accounts.election.init(candidates, election_name)
+        let election = &mut ctx.accounts.election;
+        let admin: &Signer = &ctx.accounts.admin;
+        require_eq!(election.finished, false, ElectionError::ElectionAlreadyFinished);
+        election.administrator = *admin.key;
+        election.title = election_title.clone();
+        election.description = description.clone();
+        election.finished = false;
+        Ok(())
     }
 
-    pub fn addcandidate(ctx: Context<Initialize>, new_candidate_title: String) -> Result<()> {
+    pub fn addcandidate(
+        ctx: Context<AddCandidate>,
+        candidate_name: String,
+        candidate_age: u8
+    ) -> Result<()> {
         let election = &mut ctx.accounts.election;
+        let new_candidate = &mut ctx.accounts.candidate;
+        require_eq!(
+            election.candidates
+                .iter()
+                .filter(|candidate| candidate.key() == new_candidate.key())
+                .collect::<Vec<&Pubkey>>()
+                .len(),
+            0,
+            ElectionError::ElectionCandidateAlreadyExist
+        );
         require_eq!(election.finished, false, ElectionError::ElectionAlreadyFinished);
-        // Get the next available candidate ID
-        let next_id = (election.candidates.len() as u8) + 1;
-
-        // Create a new candidate with the next available ID
-        let new_candidate = Candidates {
-            title: new_candidate_title.clone(),
-            id: next_id,
-            votes: 0,
-        };
-        election.candidates.push(new_candidate);
+        require_eq!(election.started, false, ElectionError::ElectionNotStarted);
+        election.candidates.push(new_candidate.key());
+        new_candidate.name = candidate_name.clone();
+        new_candidate.age = candidate_age;
+        new_candidate.votes = 0;
         Ok(())
     }
 
     pub fn initializeballot(ctx: Context<InitializeBallot>) -> Result<()> {
         let election = &mut ctx.accounts.election;
-        let voter_account = &mut ctx.accounts.voter_account;
-        require_eq!(voter_account.voted, true, VoterError::VoterAlreadyVoted);
-        require_eq!(election.finished, true, ElectionError::ElectionAlreadyFinished);
-        require_eq!(election.counted, true, ElectionError::ElectionAreNotCounted);
-        voter_account.voted = false;
-        voter_account.initialized = true;
+        let ballot_account = &mut ctx.accounts.ballot_account;
+        require_eq!(ballot_account.initialized, true, ElectionError::VoterAlreadyInitialized);
+        require_eq!(ballot_account.voted, false, ElectionError::VoterAlreadyVoted);
+        require_eq!(election.finished, false, ElectionError::ElectionAlreadyFinished);
+        ballot_account.voted = false;
+        ballot_account.initialized = true;
         Ok(())
     }
 
-    pub fn vote(ctx: Context<Vote>, candidate_vote_id: u8) -> Result<()> {
+    pub fn vote(ctx: Context<Vote>) -> Result<()> {
         let election = &mut ctx.accounts.election;
-        let voter_account = &mut ctx.accounts.voter_account;
+        let ballot_account = &mut ctx.accounts.ballot_account;
+        let candidate = &mut ctx.accounts.candidate;
         require_eq!(election.finished, false, ElectionError::ElectionAlreadyFinished);
-        require_eq!(
-            election.candidates
-                .iter()
-                .filter(|candidate| candidate.id == candidate_vote_id)
-                .collect::<Vec<&Candidates>>()
-                .len(),
-            1,
-            ElectionError::ElectionCandidateNotFound
-        );
-        require_eq!(voter_account.initialized, true, VoterError::NotInitialized);
-
-        let voter = &mut ctx.accounts.voter_account;
-        election.candidates = election.candidates
-            .iter()
-            .map(|candidate| {
-                let mut _candidate = candidate.clone();
-                if _candidate.id == candidate_vote_id {
-                    voter.voted = true;
-                    voter.voted_candidate = candidate_vote_id;
-                    _candidate.votes += 1;
-                }
-                _candidate
-            })
-            .collect();
+        require_eq!(ballot_account.initialized, true, ElectionError::NotInitialized);
+        candidate.votes += 1;
+        ballot_account.voted = true;
         Ok(())
     }
 }
 
-#[derive(Clone, AnchorSerialize, AnchorDeserialize)]
-pub struct Candidates {
-    pub title: String, // up to 50 char. Size: 4 + 50 = 54 bytes
-    pub id: u8, //Size 1 byte
-    pub votes: u16, // Size: 4 bytes
+#[account]
+pub struct Candidate {
+    //Size: 1 + 1 + 4 + 50 + 8 = 64 bytes
+    pub name: String, // up to 50 char = 50 bytes
+    pub age: u8, // 1 byte
+    pub votes: u16, // 4 bytes
 }
 
 #[account]
 pub struct Election {
-    // Size: 1 + 1 + 50 + 50 + 904 = 1
-    pub candidates: Vec<Candidates>, // Candidates array = 4 + () =
-    pub name: String, // up to 50 char.
-    pub description: String, // up to 50 char.
-    pub finished: bool, // bool = 1
-    pub counted: bool, // bool = 1
+    // Size: 1 + 1 + 54 + 54 + 32 + 964 + 8 = 1038 bytes
+    pub title: String, // up to 50 char + 4 = 54 byte
+    pub administrator: Pubkey, // 32 bytes
+    pub candidates: Vec<Pubkey>, // 32 * 30 + 4 = 964 candidates bytes
+    pub description: String, // up to 50 char + 4 = 54 byte
+    pub finished: bool, // 1 byte
+    pub started: bool, // 1 byte
 }
 
 #[account]
 pub struct Ballot {
-    pub voted_candidate: u8,
-    pub voted: bool,
-    pub initialized: bool,
+    // Size: 1 + 1 + 32 + 8 = 42 bytes
+    pub candidate: Pubkey, // 32 bytes
+    pub voted: bool, // 1 byte
+    pub initialized: bool, // 1 byte
 }
 
 impl Election {
-    pub const MAXIMUM_SIZE: usize = 2000;
-
-    pub fn init(&mut self, ids: Vec<String>, election_name: String) -> Result<()> {
-        require_eq!(self.finished, false, ElectionError::ElectionAlreadyFinished);
-        let mut c = 0;
-
-        self.candidates = ids
-            .iter()
-            .map(|id| {
-                c += 1;
-
-                Candidates {
-                    title: id.clone(),
-                    id: c,
-                    votes: 0,
-                }
-            })
-            .collect();
-        self.name = election_name.clone();
-        self.finished = false;
-        Ok(())
-    }
+    pub const MAXIMUM_SIZE: usize = 1038;
 }
 
 #[error_code]
 pub enum ElectionError {
     ElectionAlreadyFinished,
     ElectionCandidateNotFound,
-    ElectionAreNotCounted,
-}
-
-#[error_code]
-pub enum VoterError {
+    ElectionCandidateAlreadyExist,
+    ElectionNotStarted,
     NotInitialized,
     VoterAlreadyVoted,
+    VoterAlreadyInitialized,
 }
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
-    #[account(init, payer = admin, space = 8 + Election::MAXIMUM_SIZE)]
+    #[account(init, payer = admin, space = Election::MAXIMUM_SIZE)]
     pub election: Account<'info, Election>,
+    #[account(mut)]
+    pub admin: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+#[derive(Accounts)]
+pub struct AddCandidate<'info> {
+    #[account(mut)]
+    pub election: Account<'info, Election>,
+    #[account(init, payer = admin, space = Election::MAXIMUM_SIZE + 56 + 8)]
+    pub candidate: Account<'info, Candidate>,
     #[account(mut)]
     pub admin: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -148,8 +134,8 @@ pub struct Initialize<'info> {
 pub struct InitializeBallot<'info> {
     #[account(mut)]
     pub election: Account<'info, Election>,
-    #[account(init, payer = voter, space = 2000)]
-    pub voter_account: Account<'info, Ballot>,
+    #[account(init, payer = voter, space = Election::MAXIMUM_SIZE + 34)]
+    pub ballot_account: Account<'info, Ballot>,
     #[account(mut)]
     pub voter: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -160,9 +146,15 @@ pub struct Vote<'info> {
     #[account(mut)]
     pub election: Account<'info, Election>,
     #[account(mut)]
+    pub candidate: Account<'info, Candidate>,
+    #[account(mut)]
     pub voter: Signer<'info>,
-    // #[account(init, payer=user, space=16, seeds=[&vote_account.key().to_bytes()[..]], bump = vote_account.bump)]
-    // #[account(owner = voter_account.key())]
-    pub voter_account: Account<'info, Ballot>,
+    #[account(
+        init,
+        payer = voter,
+        owner = ballot_account.key(),
+        space = Election::MAXIMUM_SIZE + 3
+    )]
+    pub ballot_account: Account<'info, Ballot>,
     pub system_program: Program<'info, System>,
 }

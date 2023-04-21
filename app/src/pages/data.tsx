@@ -1,100 +1,75 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Grid, Card, Text } from "@nextui-org/react";
-import { Program, web3 } from "@coral-xyz/anchor";
+import { Program, ProgramAccount, web3 } from "@coral-xyz/anchor";
 import { programId, idl, getProvider } from "../config/web3";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import Election from '../components/election';
+import { useEffect, useState } from "react";
+import { PublicKey } from "@solana/web3.js";
 
 
 function Data() {
-  // const [election, setPoll] = useState(null);
-  // const [voted, setVoted] = useState(false);
-  // const anchorWallet = useAnchorWallet();
+  const [election, setPoll] = useState(null);
+  const [data2, setData] = useState<any>([]);
+  const [electionKey, setElectionKey] = useState("");
+  const [candidates, setCandidate] = useState<any>([]);
+  const navigate = useNavigate();
+
   const wallet = useWallet();
 
   async function data() {
     const provider = await getProvider(wallet);
     const program = new Program(idl, programId, provider);
-    var res = program.account.election.all();
+    var res;
+    if (wallet && provider.wallet.publicKey.toBase58() != null) {
+      res = program.account.election.all([
+        {
+          memcmp: {
+            offset: 8,
+            bytes: wallet.publicKey!.toBase58(),
+          },
+        },
+      ]).then((res) => {
+        setData(res);
+        setElectionKey(res[0].publicKey.toString());
+        getCandidates(res);
+      });
+    }
     return res;
   }
-  console.log(data());
 
-  // const articles: Accounts[] = [];
-  // const subscribe = useCallback(async () => {
-  //   const provider = await getProvider(wallet)
-  //   const program = new Program(b, programId, provider);
-  // const emitter = program.account.election.subscribe(pollPubKey);
-  // emitter.on('change', (data) => setPoll(data.options.filter(option => !!option)));
-
-  // const state = await program.account.election.fetch(pollPubKey);
-  // const accounts = await provider.connection.getParsedProgramAccounts(
-  //   pollPubKey
-  // );
-  // const data = accounts[1];
-  // await console.log(data);
-  // console.log(accounts);
-  // setVoted(state.voters.find(voter => voter.toString() === provider.wallet.publicKey.toString()));
-  // setPoll(data.options.filter(option => !!option));
-
-  // const emitter = program.account.election.subscribe(pollPubKey);
-  // emitter.on('change', (data) => setPoll(data.options.filter(option => !!option)));
-
-  // const state = await program.account.election.fetch(pollPubKey);
-
-  // setVoted(state.voters.find(voter => voter.toString() === provider.wallet.publicKey.toString()));
-  // setPoll(state.options.filter(option => !!option));
-  // }, [strawsollId, wallet]);
-
-  // useEffect(() => {
-  //   if (wallet.connected) {
-  //     subscribe();
-  //   }
-  // }, [subscribe, wallet]);
-
-  //   const program = new Program(b, programId, provider);
-  //   const pollPubKey = new PublicKey(strawsollId)
-  //   const ownerPubKey = new PublicKey("EbiFEte2RBpR8eg4s96Zo4dbHvDBwjTmWCk8RPAtm2jE")
-  //   // let ownerPubKey = Keypair.generate();
-  // try {
-  // console.log(provider.connection.getProgramAccounts(new web3.PublicKey(pollPubKey)));
-  // } catch (error) {
-  //   console.log(error)
-  // }
-
-  const testData = [
-    {
-      "account": {
-        "counted": false,
-        "finished": false,
-        "name": "Volby",
-        "candidates": [
-          {
-            "title": "",
-            "id": 1,
-            "votes": 0
-          },
-          {
-            "title": "dasda",
-            "id": 2,
-            "votes": 0
-          }
-        ],
-      }
-    },
-  ]
-  if (!wallet.connected && !wallet.connecting) {
-    return (
-      <Navigate to="/" />
-    );
+  async function getCandidates(response) {
+    const provider = await getProvider(wallet);
+    const program = new Program(idl, programId, provider);
+    let keys: PublicKey[] = [];
+    var res;
+    for (let i = 0; i < response[0].account.candidates.length; i++) {
+      keys.push(new PublicKey(response[0].account.candidates[i]))
+    }
+    res = program.account.candidate.fetchMultiple(
+      keys
+    ).then((res) => setCandidate(res));
+    return res;
   }
+
+
+  useEffect(() => {
+  }, [data2])
+
+  useEffect(() => {
+    if (!wallet.connected && !wallet.connecting) {
+      navigate("/");
+    }
+    data();
+  }, [])
+
 
   return (
     <Grid.Container gap={6} justify="center">
       {
-        testData.map((p, i) => (
+        data2.map((p: any, i: any) => (
           <Grid xs>
-            <Election key={`name`} post={p.account} />
+            <Election key={`name`} election={p.account} />
           </Grid>
         ))
       }

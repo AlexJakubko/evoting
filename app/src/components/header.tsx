@@ -5,12 +5,9 @@ import {
     IconGauge,
     IconUser,
     IconSettings,
-    IconLogout,
-    IconSwitchHorizontal,
 } from '@tabler/icons-react';
-// import { MantineLogo } from '@mantine/ds';
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 
 const useStyles = createStyles((theme) => ({
     link: {
@@ -46,11 +43,12 @@ const useStyles = createStyles((theme) => ({
 interface NavbarLinkProps {
     icon: React.FC<any>;
     label: string;
+    value; string;
     active?: boolean;
     onClick?(): void;
 }
 
-function NavbarLink({ icon: Icon, label, active, onClick }: NavbarLinkProps) {
+function NavbarLink({ icon: Icon, label, value, active, onClick }: NavbarLinkProps) {
     const { classes, cx } = useStyles();
     return (
         <Tooltip label={label} position="right" transitionProps={{ duration: 0 }}>
@@ -62,25 +60,31 @@ function NavbarLink({ icon: Icon, label, active, onClick }: NavbarLinkProps) {
 }
 
 const mockdata = [
-    { icon: IconHome2, label: 'Home', value: "" },
+    { icon: IconHome2, label: 'Domov', value: "" },
+    { icon: IconHome2, label: 'Vytvaranie', value: "create" },
     { icon: IconGauge, label: 'Dashboard', value: "election" },
-    { icon: IconUser, label: 'Account', value: "ballot" },
-    { icon: IconSettings, label: 'Settings', value: "actual" },
+    { icon: IconUser, label: 'Prihlásenie do volieb', value: "ballot" },
+    { icon: IconSettings, label: 'Volby', value: "actual" },
     { icon: IconSettings, label: 'Candidates', value: "candidates" },
 ];
 
 export function NavbarMinimal() {
     const [active, setActive] = useState(2);
+    const navigate = useNavigate();
 
-
-    const links = mockdata.map((link, index) => (
-        <NavbarLink
-            {...link}
-            key={link.label}
-            active={index === active}
-            onClick={() => setActive(index)}
-        />
-    ));
+    const links = mockdata.map((link, index) => {
+        return (
+            <NavbarLink
+                string={undefined} {...link}
+                key={link.label}
+                value={link.value}
+                active={index === active}
+                onClick={() => {
+                    setActive(index);
+                    navigate("/" + link.value)
+                }} />
+        );
+    });
 
     return (
         <Navbar
@@ -103,7 +107,7 @@ export function NavbarMinimal() {
             <Navbar.Section>
                 <Stack justify="center" spacing={0}>
                     {/* <NavbarLink icon={IconSwitchHorizontal} label="Change account" /> */}
-                    <NavbarLink icon={IconLogout} label="Logout" />
+                    {/* <NavbarLink icon={IconLogout} label="Logout" /> */}
                 </Stack>
             </Navbar.Section>
         </Navbar>

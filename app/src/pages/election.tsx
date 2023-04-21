@@ -4,6 +4,7 @@ import { Program, web3 } from "@coral-xyz/anchor";
 import { idl, programId, getProvider } from "../config/web3";
 import { Navigate, useLocation, useParams } from "react-router-dom";
 import { PublicKey } from "@solana/web3.js";
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, Select, MenuItem, Checkbox } from '@material-ui/core';
 
 const bs58 = require("bs58");
 const a = JSON.stringify(idl);
@@ -13,6 +14,8 @@ const { Keypair } = web3;
 function Election() {
   const [election, setPoll] = useState(null);
   const [voted, setVoted] = useState(false);
+  const [data2, setData] = useState<any>([]);
+  const [candidates2, setCandidate2] = useState<any>([]);
   const pollKey = useLocation();
 
   const anchorWallet = useAnchorWallet();
@@ -103,28 +106,97 @@ function Election() {
   // } catch (error) {
   //   console.log(error)
   // }
-  // }
+  // }\
+  async function data() {
+    const provider = await getProvider(wallet);
+    const program = new Program(idl, programId, provider);
+    var res = program.account.election.all([
+      {
+        memcmp: {
+          offset: 8,
+          bytes: provider.wallet.publicKey.toBase58(),
+        },
+      },
+    ]).then((res) => setData(res));
+    console.log(data2);
+    return res;
+  }
+
+  async function getCandidates() {
+    const provider = await getProvider(wallet);
+    const program = new Program(idl, programId, provider);
+    let keys: PublicKey[] = [];
+    for (let i = 0; i < data2[0].account.candidates.length; i++) {
+      keys.push(new PublicKey(data2[0].account.candidates[i]))
+    }
+    var res = program.account.candidate.fetchMultiple(
+      keys
+    ).then((res) => setCandidate2(res));
+    return res;
+  }
+
+  useEffect(() => {
+  }, [data2])
+
+  useEffect(() => {
+    data();
+    getCandidates();
+    console.log(data2);
+    console.log(candidates);
+  }, [])
+
+  const candidates = [
+    { id: 1, name: 'Candidate A', age: 32 },
+    { id: 2, name: 'Candidate B', age: 32 },
+    { id: 3, name: 'Candidate C', age: 32 },
+  ];
+
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
+
+  const handleCandidateChange = (event) => {
+    setSelectedCandidate(event.target.value);
+  };
+
+  const handleVoteClick = () => {
+    console.log(`Voted for candidate ${selectedCandidate}`);
+    // Add your voting logic here
+  };
+
 
   if (!wallet.connected && !wallet.connecting) {
     return <Navigate to="/" />;
   }
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 w-full h-full">
-      <div className="mb-10 flex flex-col gap-3">
-        <h1 className="text-5xl text-white font-bold text-center">
-          Your time to vote!
-        </h1>
-        <button
-      onClick={() =>  vote(1)}
-      className="bg-white items-center flex relative w-[500px] h-20 text-lg p-4 rounded-xl outline-none border-2 border-indigo-500"
-      style={{ cursor: "pointer" }}
-    >
-       Tutaj
-    </button>
-      </div>
-      </div>
+    <TableContainer component={Paper}>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>Kandidát</TableCell>
+            <TableCell>Vek</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {candidates.map((candidate) => (
+            <TableRow key={candidate.id}>
+              <TableCell>{candidate.name}</TableCell>
+              <TableCell>{candidate.age}</TableCell>
+              <TableCell>
+                <Checkbox
+                  checked={selectedCandidate === candidate.id}
+                  onChange={handleCandidateChange}
+                  value={candidate.id}
+                />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <Button variant="contained" color="primary" onClick={handleVoteClick} disabled={!selectedCandidate}>
+        Vote
+      </Button>
+    </TableContainer>
   );
-}
+};
 
 export default Election;

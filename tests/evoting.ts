@@ -1,68 +1,127 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { Election } from "../target/types/election";
-import { expect } from "chai";
+import { assert, expect } from "chai";
 
 describe("election", () => {
   // Configure the client to use the local cluster.
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
-  const payer = provider.wallet as anchor.Wallet;
-  const program = anchor.workspace.Election as Program<Election>;
-  const keypair = anchor.web3.Keypair.generate();
 
-  it("Init poll", async () => {
+  const admin = provider.wallet as anchor.Wallet;
+  const voter = provider.wallet as anchor.Wallet;
+  const program = anchor.workspace.Election as Program<Election>;
+
+  const keypairElection = anchor.web3.Keypair.generate();
+  const ElectionCandidate = anchor.web3.Keypair.generate();
+  const ElectionCandidate2 = anchor.web3.Keypair.generate();
+
+  const voterBallot = anchor.web3.Keypair.generate();
+
+  it("Initializes the Election", async () => {
+    // Define the arguments.
+    const election_title = "Test Election";
+    const description = "Election for Unit Tests";
+
+    // Call the initialize function via RPC.
     await program.methods
-      .initialize(['Solana', 'Ethereum', 'Bitcoin'])
+      .initialize(election_title, description)
       .accounts({
-        admin: (program.provider as anchor.AnchorProvider).wallet.publicKey,
-        election: keypair.publicKey
+        admin: admin.publicKey,
+        election: keypairElection.publicKey,
       })
-      .signers([keypair])
+      .signers([keypairElection])
       .rpc();
 
-    const state = await program.account
-      .election
-      .fetch(keypair.publicKey);
+    // Fetch the election account.
+    const electionAccount = await program.account.election.fetch(
+      keypairElection.publicKey
+    );
 
-    console.log(state.candidates);
-    expect(state.candidates).to.eql([
-      {
-        title: 'Solana',
-        id: 1,
-        votes: 0
-      },
-      {
-        title: 'Ethereum',
-        id: 2,
-        votes: 0
-      },
-      {
-        title: 'Bitcoin',
-        id: 3,
-        votes: 0
-      }
-    ]);
+    // Check the election account fields.
+    assert.ok(electionAccount.administrator.equals(admin.publicKey));
+    assert.strictEqual(electionAccount.title, election_title);
+    assert.strictEqual(electionAccount.description, description);
+    assert.strictEqual(electionAccount.finished, false);
   });
 
-  it("Vote option", async () => {
-    const voterKeypair = anchor.web3.Keypair.generate();
-    const voterAccount = anchor.web3.Keypair.generate();
+  it("Adds a Candidate", async () => {
+    // Define the arguments.
+    const candidate_name = "John Doe";
+    const candidate_age = 35;
 
-    const transaction_signature = await program.methods
-      .vote(1)
+    // Create a candidate account.
+    const candidateAccount = await program.methods
+      .addcandidate(candidate_name, candidate_age)
       .accounts({
-        election: keypair.publicKey,
-        voter: voterKeypair.publicKey,
-        voterAccount: voterAccount.publicKey,
+        admin: admin.publicKey,
+        election: keypairElection.publicKey,
+        candidate: ElectionCandidate.publicKey,
       })
-      .signers([voterKeypair])
+      .signers([ElectionCandidate])
       .rpc();
 
-    const state = await program.account
-      .election
-      .fetch(keypair.publicKey);
-    console.log({ state });
+    await program.methods
+      .addcandidate(candidate_name, candidate_age)
+      .accounts({
+        admin: admin.publicKey,
+        election: keypairElection.publicKey,
+        candidate: ElectionCandidate2.publicKey,
+      })
+      .signers([ElectionCandidate2])
+      .rpc();
+
+    const testCandidate = program.account.candidate.fetch(
+      ElectionCandidate2.publicKey
+    );
+    const testElection = await program.account.election.fetch(
+      keypairElection.publicKey
+    );
+
+    // Check if the candidate has been added.
+    assert.equal(
+      testElection.candidates[0].toString(),
+      ElectionCandidate.publicKey.toString()
+    );
+    assert.equal(
+      testElection.candidates[1].toString(),
+      ElectionCandidate2.publicKey.toString()
+    );
+  });
+
+  it("Initialize ballot", async () => {
+    await program.methods
+      .initializeballot()
+      .accounts({
+        election: keypairElection.publicKey,
+        voter: voter.publicKey,
+        ballotAccount: voterBallot.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .signers([voterBallot])
+      .rpc();
+
+    const testBallot = await program.account.ballot.fetch(
+      voterBallot.publicKey
+    );
+
+    assert.equal(testBallot.initialized, true);
+
+    try {
+      program.methods
+        .initializeballot()
+        .accounts({
+          election: keypairElection.publicKey,
+          voter: voter.publicKey,
+          ballotAccount: voterBallot.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([voterBallot])
+        .rpc();
+    } catch (err) {
+      assert.strictEqual(err.error.errorMessage, 'VoterAlreadyInitialized');
+      // assert.strictEqual(err.error.errorCode.number, 6000);
+    }
   });
 
   // it("Cannot vote multiple times", async () => {
@@ -92,7 +151,6 @@ describe("election", () => {
   //     expect(err.error.errorCode.code).to.eq('UserAlreadyVoted')
   //   }
 
-    
   //   const state = await program.account
   //     .election
   //     .fetch(keypair.publicKey);
@@ -102,7 +160,7 @@ describe("election", () => {
   // it("Transfer between accounts using the system program", async () => {
 
   //   await getBalances(payer.publicKey, test1Recipient.publicKey, "Beginning");
-    
+
   //   await program.methods.transferSolWithCpi(new anchor.BN(transferAmount))
   //     .accounts({
   //       from: payer.publicKey,
@@ -117,8 +175,8 @@ describe("election", () => {
   // });
 
   // async function getBalances(
-  //   payerPubkey: anchor.web3.PublicKey, 
-  //   recipientPubkey: anchor.web3.PublicKey, 
+  //   payerPubkey: anchor.web3.PublicKey,
+  //   recipientPubkey: anchor.web3.PublicKey,
   //   timeframe: string
   // ) {
 
@@ -128,4 +186,4 @@ describe("election", () => {
   //   console.log(`   Payer: ${payerBalance}`);
   //   console.log(`   Recipient: ${recipientBalance}`);
   // };
-}); 
+});

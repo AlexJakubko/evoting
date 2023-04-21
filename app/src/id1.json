@@ -23,14 +23,47 @@
       ],
       "args": [
         {
-          "name": "candidates",
-          "type": {
-            "vec": "string"
-          }
+          "name": "electionTitle",
+          "type": "string"
         },
         {
-          "name": "electionName",
+          "name": "description",
           "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "addcandidate",
+      "accounts": [
+        {
+          "name": "election",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "candidate",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "admin",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "candidateName",
+          "type": "string"
+        },
+        {
+          "name": "candidateAge",
+          "type": "u8"
         }
       ]
     },
@@ -43,7 +76,7 @@
           "isSigner": false
         },
         {
-          "name": "voterAccount",
+          "name": "ballotAccount",
           "isMut": true,
           "isSigner": true
         },
@@ -69,14 +102,19 @@
           "isSigner": false
         },
         {
+          "name": "candidate",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "voter",
           "isMut": true,
           "isSigner": true
         },
         {
-          "name": "voterAccount",
-          "isMut": false,
-          "isSigner": false
+          "name": "ballotAccount",
+          "isMut": true,
+          "isSigner": true
         },
         {
           "name": "systemProgram",
@@ -84,30 +122,51 @@
           "isSigner": false
         }
       ],
-      "args": [
-        {
-          "name": "candidateVoteId",
-          "type": "u8"
-        }
-      ]
+      "args": []
     }
   ],
   "accounts": [
+    {
+      "name": "Candidate",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "age",
+            "type": "u8"
+          },
+          {
+            "name": "votes",
+            "type": "u16"
+          }
+        ]
+      }
+    },
     {
       "name": "Election",
       "type": {
         "kind": "struct",
         "fields": [
           {
+            "name": "administrator",
+            "type": "publicKey"
+          },
+          {
             "name": "candidates",
             "type": {
-              "vec": {
-                "defined": "Candidates"
-              }
+              "vec": "publicKey"
             }
           },
           {
-            "name": "name",
+            "name": "title",
+            "type": "string"
+          },
+          {
+            "name": "description",
             "type": "string"
           },
           {
@@ -127,8 +186,8 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "votedCandidate",
-            "type": "u8"
+            "name": "candidate",
+            "type": "publicKey"
           },
           {
             "name": "voted",
@@ -143,26 +202,6 @@
     }
   ],
   "types": [
-    {
-      "name": "Candidates",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "title",
-            "type": "string"
-          },
-          {
-            "name": "id",
-            "type": "u8"
-          },
-          {
-            "name": "votes",
-            "type": "u32"
-          }
-        ]
-      }
-    },
     {
       "name": "VoterError",
       "type": {
